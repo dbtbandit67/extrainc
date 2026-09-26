@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXTRA INC - Cinematic Launch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #03050a;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        /* 
+         * CRITICAL Z-INDEX LAYERING 
+         * 1. Sky Canvas (z: 1)
+         * 2. Launch Pad (z: 2)
+         * 3. Smoke Canvas (z: 3)
+         * 4. Rocket (z: 4) - Highest, never obscured
+         * 5. UI (z: 5)
+         */
+
+        #sky-canvas, #smoke-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #sky-canvas {
+            z-index: 1;
+        }
+
+        #smoke-canvas {
+            z-index: 3;
+            filter: blur(1px);
+            opacity: 1;
+        }
+
+        /* 30-second dissolve effect for the smoke plume */
+        #smoke-canvas.fade-smoke {
+            opacity: 0;
+            transition: opacity 30s ease-in-out;
+        }
+
+        /* Container that scales the pad and rocket down drastically for massive perspective */
+        .scene-container {
+            position: absolute;
+            bottom: 0; /* Anchored perfectly to the bottom */
+            left: 50%;
+            transform-origin: bottom center;
+            transform: translateX(-50%) scale(0.20); /* Base scale */
+            width: 800px; /* SVG internal width */
+            height: 900px; /* SVG internal height */
+            pointer-events: none;
+        }
+
+        /* Responsive scaling applied ONLY to parent container */
+        @media (max-width: 768px) {
+            .scene-container { transform: translateX(-50%) scale(0.18); }
+        }
+        @media (max-width: 480px) {
+            .scene-container { transform: translateX(-50%) scale(0.15); }
+        }
+
+        #pad-layer {
+            z-index: 2;
+        }
+
+        #rocket-layer {
+            z-index: 4;
+        }
+
+        /* This wrapper moves the rocket vertically WITHOUT overwriting the parent's scale */
+        #rocket-mover {
+            width: 100%;
+            height: 100%;
+            will-change: transform;
+        }
+
+        #ui-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        #timer {
+            font-size: clamp(6rem, 15vw, 12rem);
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 0 50px rgba(255,255,255,0.2), 0 10px 30px rgba(0,0,0,0.8);
+            transition: opacity 0.3s ease-out, transform 0.1s ease-out;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #final-screen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 3s ease-in, transform 3s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        #final-screen.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        #extra-inc {
+            font-size: clamp(3rem, 8vw, 7rem);
+            font-weight: 900;
+            letter-spacing: 0.2em;
+            text-shadow: 0 0 40px rgba(255,255,255,0.4);
+            line-height: 1.1;
+            text-align: center;
+        }
+
+        #coming-soon {
+            font-size: clamp(1rem, 2.5vw, 2rem);
+            font-weight: 300;
+            letter-spacing: 0.5em;
+            text-transform: uppercase;
+            margin-top: 1rem;
+            color: #a0a0a0;
+            text-shadow: 0 0 20px rgba(255,255,255,0.2);
+            text-align: center;
+        }
+
+        @keyframes cinematic-shake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(-2px, 1px) rotate(-0.1deg); }
+            50% { transform: translate(1px, -2px) rotate(0.1deg); }
+            75% { transform: translate(2px, 2px) rotate(0deg); }
+        }
+
+        .camera-shake {
+            animation: cinematic-shake 0.3s infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Z-Index 1: Background Sky -->
+    <canvas id="sky-canvas"></canvas>
+
+    <!-- Z-Index 2: Launchpad Layer -->
+    <div class="scene-container" id="pad-layer">
+        <svg viewBox="0 0 800 900" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <!-- Massive Concrete Base anchoring to the absolute bottom (Y=800 to 900) -->
+            <rect x="0" y="800" width="800" height="100" fill="#141a21" />
+            <polygon points="100,800 700,800 800,900 0,900" fill="#0d1117" />
+            
+            <!-- Mobile Launch Platform (MLP) -->
+            <rect x="250" y="760" width="300" height="40" fill="#4a5568" rx="5"/>
+            <rect x="230" y="750" width="340" height="10" fill="#718096" rx="2"/>
+            
+            <!-- Flame Trench -->
+            <path d="M 350 760 L 450 760 L 470 800 L 330 800 Z" fill="#000000" opacity="0.6"/>
+
+            <!-- Fixed Service Structure (Tower) -->
+            <rect x="180" y="250" width="60" height="500" fill="#718096"/>
+            <line x1="180" y1="300" x2="240" y2="350" stroke="#4a5568" stroke-width="8"/>
+            <line x1="180" y1="350" x2="240" y2="300" stroke="#4a5568" stroke-width="8"/>
+            <line x1="180" y1="450" x2="240" y2="500" stroke="#4a5568" stroke-width="8"/>
+            <line x1="180" y1="500" x2="240" y2="450" stroke="#4a5568" stroke-width="8"/>
+            <line x1="180" y1="600" x2="240" y2="650" stroke="#4a5568" stroke-width="8"/>
+            <line x1="180" y1="650" x2="240" y2="600" stroke="#4a5568" stroke-width="8"/>
+            
+            <!-- Lightning Mast -->
+            <rect x="160" y="240" width="100" height="10" fill="#a0aec0"/>
+            <polygon points="180,240 240,240 210,180" fill="#cbd5e0"/>
+            <line x1="210" y1="180" x2="210" y2="100" stroke="#e2e8f0" stroke-width="4"/>
+
+            <!-- Retractable Swing Arms -->
+            <g id="swing-arms" style="transition: transform 2s ease-in-out;">
+                <rect x="240" y="320" width="130" height="12" fill="#718096"/>
+                <rect x="240" y="470" width="140" height="12" fill="#718096"/>
+                <rect x="240" y="650" width="120" height="12" fill="#718096"/>
+            </g>
+        </svg>
+    </div>
+
+    <!-- Z-Index 3: Smoke Canvas -->
+    <canvas id="smoke-canvas"></canvas>
+
+    <!-- Z-Index 4: Rocket Layer (Always rendering above the smoke) -->
+    <div class="scene-container" id="rocket-layer">
+        <div id="rocket-mover">
+            <svg viewBox="0 0 800 900" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                
+                <!-- Dynamic SVG core flames attached to nozzles -->
+                <g id="engine-flames" style="display: none; transform-origin: 400px 750px;">
+                    <!-- Left SRB flame -->
+                    <path d="M 345 750 L 360 880 L 375 750 Z" fill="#ff7a00" opacity="0.8"/>
+                    <path d="M 352 750 L 360 840 L 368 750 Z" fill="#ffffff" />
+                    <!-- Right SRB flame -->
+                    <path d="M 425 750 L 440 880 L 455 750 Z" fill="#ff7a00" opacity="0.8"/>
+                    <path d="M 432 750 L 440 840 L 448 750 Z" fill="#ffffff" />
+                    <!-- Main Engine flame -->
+                    <path d="M 390 750 L 400 850 L 410 750 Z" fill="#ffaa00" opacity="0.9"/>
+                    <path d="M 395 750 L 400 810 L 405 750 Z" fill="#ffffff" />
+                </g>
+
+                <g id="shuttle-stack">
+                    <!-- External Tank (ET) -->
+                    <path d="M 380 250 C 380 180, 420 180, 420 250 L 420 750 C 420 755, 380 755, 380 750 Z" fill="#dd6b20"/>
+                    <path d="M 385 250 C 385 200, 415 200, 415 250 L 415 745 Z" fill="#ed8936"/>
+
+                    <!-- Left Solid Rocket Booster (SRB) -->
+                    <path d="M 350 320 C 350 280, 370 280, 370 320 L 370 750 L 350 750 Z" fill="#f7fafc"/>
+                    <polygon points="345,750 375,750 380,770 340,770" fill="#2d3748"/>
+                    <rect x="350" y="380" width="20" height="5" fill="#e2e8f0"/>
+                    <rect x="350" y="480" width="20" height="5" fill="#e2e8f0"/>
+                    
+                    <!-- Right Solid Rocket Booster (SRB) -->
+                    <path d="M 430 320 C 430 280, 450 280, 450 320 L 450 750 L 430 750 Z" fill="#f7fafc"/>
+                    <polygon points="425,750 455,750 460,770 420,770" fill="#2d3748"/>
+                    <rect x="430" y="380" width="20" height="5" fill="#e2e8f0"/>
+                    <rect x="430" y="480" width="20" height="5" fill="#e2e8f0"/>
+
+                    <!-- Space Shuttle Orbiter -->
+                    <g transform="translate(400, 450)">
+                        <path d="M 25 -50 C 25 -120, 60 -120, 60 -50 L 65 250 L 15 250 Z" fill="#ffffff"/>
+                        <path d="M 30 -50 C 30 -100, 55 -100, 55 -50 L 60 250 L 25 250 Z" fill="#edf2f7"/>
+                        
+                        <path d="M 20 60 L -40 240 L 15 240 Z" fill="#ffffff"/>
+                        <polygon points="-40,240 15,240 10,250 -45,250" fill="#2d3748"/>
+                        
+                        <path d="M 60 60 L 120 240 L 65 240 Z" fill="#ffffff"/>
+                        <polygon points="120,240 65,240 70,250 125,250" fill="#2d3748"/>
+
+                        <path d="M 33 -50 C 40 -65, 50 -65, 53 -50 L 48 -40 L 37 -40 Z" fill="#1a202c"/>
+
+                        <polygon points="40,200 40,110 5,230 40,230" fill="#e2e8f0"/>
+                        <polygon points="40,200 40,110 75,230 40,230" fill="#e2e8f0"/>
+
+                        <!-- Engine Nozzles -->
+                        <polygon points="25,250 40,250 42,265 22,265" fill="#4a5568"/>
+                        <polygon points="45,250 60,250 62,265 42,265" fill="#4a5568"/>
+                    </g>
+                </g>
+
+                <!-- Multi-point tracking for intense localized fire emission -->
+                <circle id="tracker-left" cx="360" cy="760" r="1" fill="transparent" />
+                <circle id="tracker-center" cx="400" cy="760" r="1" fill="transparent" />
+                <circle id="tracker-right" cx="440" cy="760" r="1" fill="transparent" />
+            </svg>
+        </div>
+    </div>
+
+    <!-- Z-Index 5: UI Layer -->
+    <div id="ui-layer">
+        <div id="timer">10</div>
+        <div id="final-screen">
+            <div id="extra-inc">EXTRA INC</div>
+            <div id="coming-soon">coming soon</div>
+        </div>
+    </div>
+
+    <script>
+        const skyCanvas = document.getElementById('sky-canvas');
+        const skyCtx = skyCanvas.getContext('2d', { alpha: false });
+        const smokeCanvas = document.getElementById('smoke-canvas');
+        const smokeCtx = smokeCanvas.getContext('2d');
+        
+        const timerEl = document.getElementById('timer');
+        const rocketMover = document.getElementById('rocket-mover');
+        const trackerLeft = document.getElementById('tracker-left');
+        const trackerCenter = document.getElementById('tracker-center');
+        const trackerRight = document.getElementById('tracker-right');
+        const engineFlames = document.getElementById('engine-flames');
+        const finalScreen = document.getElementById('final-screen');
+        const swingArms = document.getElementById('swing-arms');
+
+        let width, height;
+        let countdown = 10;
+        let isLaunching = false;
+        let rocketIsGone = false;
+        
+        let rocketY = 0; 
+        let velocity = 0;
+        let acceleration = 0.005; // Starting acceleration
+        let maxAcceleration = 1.0;
+        
+        let particles = [];
+        const MAX_PARTICLES = 1000;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            skyCanvas.width = width;
+            skyCanvas.height = height;
+            smokeCanvas.width = width;
+            smokeCanvas.height = height;
+            drawSky();
+        }
+        window.addEventListener('resize', resize);
+
+        function drawSky() {
+            skyCtx.fillStyle = '#03050a';
+            skyCtx.fillRect(0, 0, width, height);
+
+            const numStars = Math.floor((width * height) / 2500); 
+            for(let i = 0; i < numStars; i++) {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const radius = Math.random() * 1.5;
+                const alpha = Math.random() * 0.8 + 0.2;
+                
+                skyCtx.beginPath();
+                skyCtx.arc(x, y, radius, 0, Math.PI * 2);
+                skyCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                if(Math.random() > 0.9) skyCtx.fillStyle = `rgba(180, 200, 255, ${alpha})`;
+                if(Math.random() > 0.95) skyCtx.fillStyle = `rgba(255, 230, 180, ${alpha})`;
+                skyCtx.fill();
+            }
+
+            const moonX = Math.min(width * 0.85, width - 60);
+            const moonY = Math.max(height * 0.15, 60);
+            const moonRadius = width < 500 ? 30 : 45;
+
+            skyCtx.beginPath();
+            skyCtx.arc(moonX, moonY, moonRadius * 1.5, 0, Math.PI * 2);
+            const grd = skyCtx.createRadialGradient(moonX, moonY, moonRadius, moonX, moonY, moonRadius * 1.5);
+            grd.addColorStop(0, 'rgba(255,255,255,0.15)');
+            grd.addColorStop(1, 'rgba(255,255,255,0)');
+            skyCtx.fillStyle = grd;
+            skyCtx.fill();
+
+            skyCtx.beginPath();
+            skyCtx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+            skyCtx.fillStyle = '#f8f9fa';
+            skyCtx.fill();
+
+            skyCtx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+            skyCtx.beginPath(); skyCtx.arc(moonX - moonRadius*0.3, moonY - moonRadius*0.2, moonRadius*0.25, 0, Math.PI*2); skyCtx.fill();
+            skyCtx.beginPath(); skyCtx.arc(moonX + moonRadius*0.4, moonY + moonRadius*0.3, moonRadius*0.3, 0, Math.PI*2); skyCtx.fill();
+        }
+
+        resize();
+
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            
+            if (countdown > 0) {
+                timerEl.style.transform = 'scale(1.1)';
+                setTimeout(() => { timerEl.style.transform = 'scale(1)'; }, 100);
+                timerEl.innerText = countdown;
+
+                if (countdown === 3) {
+                    swingArms.style.transform = 'translateX(-40px)';
+                }
+            } else {
+                clearInterval(countdownInterval);
+                timerEl.style.opacity = '0';
+                startLaunch();
+            }
+        }, 1000);
+
+        function startLaunch() {
+            isLaunching = true;
+            engineFlames.style.display = 'block'; // Turn on core SVG flames
+            document.body.classList.add('camera-shake');
+            requestAnimationFrame(physicsLoop);
+        }
+
+        class Particle {
+            constructor(x, y, isGrounded, velocity) {
+                this.x = x + (Math.random() - 0.5) * 8;
+                this.y = y + (Math.random() - 0.5) * 8;
+                this.life = 0;
+
+                if (rocketIsGone) {
+                    this.vx = (Math.random() - 0.5) * 15;
+                    this.vy = (Math.random() - 0.5) * 10 - 2; 
+                    this.radius = Math.random() * 80 + 40;
+                    this.radiusGrowth = Math.random() * 2 + 1;
+                    this.maxLife = Math.random() * 400 + 200;
+                    this.isFire = false;
+                    this.colorIndex = 5; 
+                } 
+                else if (isGrounded) {
+                    // Intense flames hitting the pad and blasting horizontally
+                    const dir = Math.random() < 0.5 ? -1 : 1;
+                    this.vx = dir * (Math.random() * 30 + 10);
+                    this.vy = (Math.random() - 0.5) * 2; 
+                    this.radius = Math.random() * 12 + 6;
+                    this.radiusGrowth = Math.random() * 1.5 + 0.5;
+                    this.maxLife = Math.random() * 150 + 50;
+                    this.isFire = true;
+                    this.colorIndex = 0; // Pure white core
+                } 
+                else {
+                    // Airborne exhaust - blasts violently downwards from the nozzle
+                    this.vx = (Math.random() - 0.5) * 15;
+                    // Extreme downward velocity to simulate jet propulsion
+                    this.vy = Math.random() * 20 + (velocity * 2) + 15; 
+                    this.radius = Math.random() * 15 + 5;
+                    this.radiusGrowth = Math.random() * 3 + (velocity * 0.15);
+                    this.maxLife = Math.random() * 120 + 80;
+                    this.isFire = true;
+                    this.colorIndex = 0;
+                }
+
+                // Fire transitions to smoke: White -> Yellow -> Orange -> Red -> Dark Smoke
+                this.colors = ['#ffffff', '#fff59d', '#ff9800', '#f44336', '#5d4037', '#757575', '#424242', '#212121'];
+                this.alpha = 1;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                this.vx *= 0.94;
+                this.vy *= 0.94;
+                
+                this.radius += this.radiusGrowth;
+                this.life++;
+
+                const progress = this.life / this.maxLife;
+
+                if (this.isFire) {
+                    if (progress > 0.05) this.colorIndex = 1;
+                    if (progress > 0.15) this.colorIndex = 2;
+                    if (progress > 0.25) this.colorIndex = 3;
+                    if (progress > 0.35) {
+                        this.isFire = false;
+                        this.colorIndex = 4;
+                    }
+                } else {
+                    if (progress > 0.45) this.colorIndex = 5;
+                    if (progress > 0.65) this.colorIndex = 6;
+                    if (progress > 0.85) this.colorIndex = 7;
+                    this.vy -= 0.3; // Smoke naturally drifts up
+                }
+
+                if (progress > 0.6) {
+                    this.alpha = 1 - ((progress - 0.6) / 0.4);
+                }
+            }
+
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+                
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, Math.max(0, this.radius), 0, Math.PI * 2);
+                ctx.fillStyle = this.colors[this.colorIndex];
+                
+                if (this.isFire) {
+                    ctx.globalCompositeOperation = 'screen'; // Gives fire a brilliant glow
+                }
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function physicsLoop() {
+            if (!rocketIsGone) {
+                acceleration = Math.min(acceleration * 1.025, maxAcceleration);
+                velocity += acceleration;
+                rocketY -= velocity; 
+                
+                // IMPORTANT: We only move the nested container so the original scale is preserved untouched
+                rocketMover.style.transform = `translateY(${rocketY}px)`;
+
+                // Flicker the SVG core flames
+                const scaleY = 0.8 + Math.random() * 0.4;
+                engineFlames.style.transform = `scaleY(${scaleY})`;
+            }
+
+            // Get live screen coordinates of all 3 exhaust nozzles
+            const rectL = trackerLeft.getBoundingClientRect();
+            const rectC = trackerCenter.getBoundingClientRect();
+            const rectR = trackerRight.getBoundingClientRect();
+            
+            const emitCoords = [
+                { x: rectL.left + rectL.width/2, y: rectL.top + rectL.height/2 },
+                { x: rectC.left + rectC.width/2, y: rectC.top + rectC.height/2 },
+                { x: rectR.left + rectR.width/2, y: rectR.top + rectR.height/2 }
+            ];
+
+            smokeCtx.clearRect(0, 0, width, height);
+
+            const groundThreshold = height - (height * 0.15);
+            // Check based on the center nozzle
+            const isGrounded = emitCoords[1].y > groundThreshold;
+
+            const rocketRect = rocketMover.getBoundingClientRect();
+            if (rocketRect.bottom < 0 && !rocketIsGone) {
+                rocketIsGone = true;
+                document.body.classList.remove('camera-shake');
+                engineFlames.style.display = 'none';
+                
+                // Initiate the 30-second slow fade-out dissolve effect on the smoke
+                smokeCanvas.classList.add('fade-smoke');
+                
+                setTimeout(() => {
+                    finalScreen.classList.add('visible');
+                }, 500);
+            }
+
+            if (!rocketIsGone) {
+                // Spawn intensely from all 3 points to create a fiery exhaust trail
+                const spawnRate = Math.min(15, Math.floor(5 + velocity * 1.2));
+                
+                for (let coord of emitCoords) {
+                    for (let i = 0; i < spawnRate; i++) {
+                        if (particles.length < MAX_PARTICLES) {
+                            particles.push(new Particle(coord.x, coord.y, isGrounded, velocity));
+                        }
+                    }
+                }
+            } else {
+                // Post-launch massive lingering smoke filling the bottom
+                // Even though the canvas fades, we generate them momentarily to create a thick cloud buffer
+                if (Math.random() < 0.4 && particles.length < 200) {
+                    for(let i=0; i<4; i++) {
+                        particles.push(new Particle(width/2, height + 50, false, 0));
+                    }
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update();
+                
+                if (p.life >= p.maxLife || p.alpha <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    p.draw(smokeCtx);
+                }
+            }
+
+            // Stop calculating completely once the 30s CSS transition is fully done to save CPU
+            if (rocketIsGone && window.getComputedStyle(smokeCanvas).opacity === '0') {
+                return;
+            }
+
+            requestAnimationFrame(physicsLoop);
+        }
+    </script>
+</body>
+</html>
